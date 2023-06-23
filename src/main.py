@@ -2,31 +2,36 @@
 import numpy as np
 import cv2
 import speech_recognition as sr
-from google.cloud import vision
+
 
 # sudo apt install espeak
 #import pyaudio
 # pip3 install pyttsx
 # 3 sudo apt install espeak pip3 install pyaudio or use sudo apt install python3-pyaudio
 # apt install libleptonica-dev tesseract-ocr  libtesseract-dev python3-pil tesseract-ocr-eng tesseract-ocr-deu tesseract-ocr-script-latn
-import pyttsx4
+import pyttsx3
 import ultralytics
 from ultralytics import YOLO
 import openai
 import numpy as np
 import time
 time.sleep(5)
+from transformers import pipeline
 
+captioner = pipeline("image-to-text",model="Salesforce/blip-image-captioning-base")
 
+API_KEY = ""
 
-#engine = pyttsx4.init()
-#voices = engine.getProperty('voices')
-#engine.setProperty('voice', voices[0].id)
-# change_voice(engine, "nl_BE", "VoiceGenderFemale")
+engine = pyttsx3.init()
+voices = engine.getProperty('voices')
+for idx, voice in enumerate(voices):
+    print(idx, voice)
+engine.setProperty('voice', voices[9].id) #9 = german
+
 WIDTH = 1920
 HEIGHT = 1080
 
-vid = cv2.VideoCapture(1, cv2.CAP_DSHOW) # this is the magic!
+vid = cv2.VideoCapture(0, cv2.CAP_DSHOW) # this is the magic!
 vid.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
 vid.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
 ultralytics.checks()
@@ -126,8 +131,12 @@ def bilderkennung(frame):
 
 
 def bild_von_kamera():
+    from PIL import Image
     _, frame = vid.read()
-    return frame
+    # You may need to convert the color.
+    img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    im_pil = Image.fromarray(img)
+    return im_pil
 
 
 def speak(audio):
@@ -184,40 +193,21 @@ def speech2txt():
 
 
 def describe_image(image):
-    # Instantiieren des Vision-Client
-    client = vision.ImageAnnotatorClient(credentials=GAPI_KEY)
-
-
-    image_bytes = image.tobytes()
-
-    # Erstellen eines Image-Objekts für die Vision API
-    vision_image = vision.Image(content=image_bytes)
-
-    # Anfordern der Bildbeschreibung von der Vision API
-    response = client.annotate_image(
-        {
-            "image": vision_image,
-            "features": [{"type_": vision.Feature.Type.LABEL_DETECTION}],
-        }
-    )
-
-    # Extrahieren der Labels
-    labels = response.label_annotations
-    label_descriptions = [label.description for label in labels]
-
-    return label_descriptions
+    ret = captioner(image)
+    return ret[0]["generated_text"]
 
 
 img = screenshot_erstellen()
+#img = bild_von_kamera()
 text_detectedObjs = text_aus_bild_lesen(img)
 yolo_detectedObjs = bilderkennung(img)
 
-prompt = "Text: "
+prompt = "Bildbeschreibung: " + describe_image(img) + " Text: "
 for text in text_detectedObjs:
     #print(text)
     prompt += str(text)
 
-prompt += "Objekte: "
+prompt += " Objekte: "
 for obj in yolo_detectedObjs:
     prompt += str(obj)
 
@@ -239,16 +229,15 @@ for obj in yolo_detectedObjs:
 #prompt = "texte: " + text_detectedObjs + " objekte: " + yolo_detectedObjs
 #frage = speech2txt()
 
-describe_image(img)
-
-frage = "Woher könnten die Informationen stammen?"
+frage = "Fasse die folgenden Informationen sinnvoll zusammen."
+#frage = speech2txt()
 print("frage", frage)
 print("prompt", prompt)
 openai.api_key = API_KEY
 response = openai.ChatCompletion.create(
     model="gpt-3.5-turbo",
     messages=[
-        {"role": "system", "content": "Informationen, von einer Website, bereitgestellt aus einer Texterkennung (Text:) und einem Yolo-Netzwerk (Objekte:): %s." % prompt},
+        {"role": "system", "content": "Weiße nicht daraufhin, dass es schwierig ist. Es erübrigt sich darauf hinzuweisen, dass die Interpretation schwierig ist oder etwas ungenau ist. Bildbeschreiubung (Bildbeschreibung:) gefolgt von dem Text der Texterkennung (Text:) und Erkannte Objekte (Objekte:): %s." % prompt},
         {"role": "user", "content": frage},
     ]
 )
@@ -256,7 +245,7 @@ result = ''
 for choice in response.choices:
     result += choice.message.content
 print(result)
-#speak(result)
+speak(result)
 
 #cv2.imshow('img', np.array(img))
 #cv2.waitKey(0)
