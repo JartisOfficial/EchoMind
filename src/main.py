@@ -2,29 +2,32 @@
 import numpy as np
 import cv2
 import speech_recognition as sr
+# sudo apt install espeak
+#import pyaudio
+# pip3 install pyttsx
+# 3 sudo apt install espeak pip3 install pyaudio or use sudo apt install python3-pyaudio
 import pyttsx3
 import ultralytics
 from ultralytics import YOLO
 import openai
-import pyaudio
-#p = pyaudio.PyAudio()
-#for i in range(p.get_device_count()):
-#    print (p.get_device_info_by_index(i))
-engine = pyttsx3.init('sapi5')
+import numpy as np
+
+API_KEY = ""
+
+engine = pyttsx3.init()#('sapi5')
 voices = engine.getProperty('voices')
 engine.setProperty('voice', voices[0].id)
 # change_voice(engine, "nl_BE", "VoiceGenderFemale")
-WIDTH = 2560
-HEIGHT = 1440
-
+WIDTH = 1920
+HEIGHT = 1080
 
 vid = cv2.VideoCapture(1, cv2.CAP_DSHOW) # this is the magic!
 vid.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
 vid.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
 ultralytics.checks()
 # Create a new YOLO model from scratch
-model = YOLO('yolov8n.yaml')
-model = YOLO('yolov8n.pt')#
+model = YOLO('resources/yolov8n.yaml')
+model = YOLO('resources/yolov8n.pt')
 
 
 for voice in engine.getProperty('voices'):
@@ -45,6 +48,7 @@ class DetectedObj:
                 promp += str(relationship)
             promp += ";"
         return promp + "]"
+
 
 def get_overlap(detectedObj1,  detectedObj2):
     name1 = detectedObj1
@@ -76,6 +80,7 @@ def get_overlap(detectedObj1,  detectedObj2):
     # Keine Überlappung oder Einschluss
     return ""
 
+
 def prompt_erkennung(obj_pose_tuble, text_pose_tupel):
     # check_overlap
     prompt = {}
@@ -83,9 +88,6 @@ def prompt_erkennung(obj_pose_tuble, text_pose_tupel):
         is_text_on_obj = False
         for obj, (ox, oy, ow, oh) in obj_pose_tuble:
             pass
-
-
-
 
 
 def bilderkennung(frame):
@@ -109,13 +111,13 @@ def bilderkennung(frame):
                 detectedObjs.append(DetectedObj(result.verbose().split(" ")[1].replace(",", ""), (x, y, w, h),
                                                 "Objekt mit Yolov8 erkannt."))
 
-
         except Exception as e:
             print(e)
             print("Unable to Recognize your image.")
             continue
 
     return detectedObjs
+
 
 def bild_von_kamera():
     _, frame = vid.read()
@@ -127,7 +129,7 @@ def speak(audio):
     engine.runAndWait()
 
 
-def screenshot_erstellen(width=WIDTH, height=HEIGHT):
+def screenshot_erstellen(width=WIDTH, height=HEIGHT, PIL=None):
     from PIL import ImageGrab
     img = ImageGrab.grab(bbox=(0, 0, width, height))
     return img
@@ -148,6 +150,7 @@ def text_aus_bild_lesen(frame):
             DetectedObj(text, (x, y, w, h), "Text mit pytesseract erkannt."))
 
     return detectedObjs
+
 
 def speech2txt():
     r = sr.Recognizer()
@@ -172,7 +175,6 @@ def speech2txt():
 
     return query
 
-#speak("HALLO wie geht es dir`?")
 
 img = screenshot_erstellen()
 text_detectedObjs = text_aus_bild_lesen(img)
@@ -194,151 +196,24 @@ prompt = ""
 for p in overlaps:
     prompt += p + "\n"
 
-while True:
-    key_btn = {"Landeanfrage":"n"}
-    frage = speech2txt()
+frage = speech2txt()
+print(frage)
+frage = "Was siehst du in dem Bild?"
 
-    openai.api_key = "sk-"
-    print(text)
-    # print(openai.Model.list())
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system",
-             "content": "Dein Name ist Sarah. Reagiere nur wenn du angesprochen wirst. Interpretion von einem VoiceCommand ob eine Taste gedrückt werden soll oder nicht. Handelt es sich dabei um eine Action welche in dem Dict (Action, Taste) mit dem Inhalt" +str(key_btn) + " enthalten ist? Falls ja gib nur die entsprechende Taste als Antwort zurück, ansonsten False und nichts anderes." },
-            {"role": "user", "content": frage},
-        ]
-    )
-    result = ''
-    for choice in response.choices:
-        result += choice.message.content
-    print(result)
-    speak(result)
+openai.api_key = API_KEY
+response = openai.ChatCompletion.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "system", "content": "Du bist eine AI, welche die Umgebung beschreibt."},
+        {"role": "user", "content": frage},
+    ]
+)
+result = ''
+for choice in response.choices:
+    result += choice.message.content
+print(result)
+speak(result)
 
-
-import cv2
-import numpy as np
 cv2.imshow('img', np.array(img))
 cv2.waitKey(0)
-#print(speech2txt())
-import sys
-sys.exit()
-
-import ultralytics
-from ultralytics import YOLO
-# import the opencv library
-import cv2
-
-import cv2
-import numpy as np
-from PIL import ImageGrab
-from time import sleep
-import pytesseract
-import time
-from pygame import mixer
-from copy import deepcopy
-from imageai.Detection import ObjectDetection
-import os
-import torch
-# define a video capture object
-vid = cv2.VideoCapture(2)
-vid = cv2.VideoCapture(1, cv2.CAP_DSHOW) # this is the magic!
-
-vid.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-vid.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-ultralytics.checks()
-# Create a new YOLO model from scratch
-model = YOLO('yolov8n.yaml')
-model = YOLO('yolov8n.pt')#
-
-mixer.init()
-audio_playing = False
-think = "Folgendes ist bereits bekannt: "
-
-
-while (True):
-
-
-    # Capture the video frame
-    # by frame
-    ret, frame = vid.read()
-
-    results = model(frame)
-
-    # Bounding Boxes zeichnen
-    for result in results:
-        # Detection
-        print(result.names)
-        result.boxes.xyxy  # box with xyxy format, (N, 4)
-        result.boxes.xywh  # box with xywh format, (N, 4)
-        result.boxes.xyxyn  # box with xyxy format but normalized, (N, 4)
-        result.boxes.xywhn  # box with xywh format but normalized, (N, 4)
-        result.boxes.conf  # confidence score, (N, 1)
-        result.boxes.cls  # cls, (N, 1)
-
-        # Segmentation
-        #result.masks.data  # masks, (N, H, W)
-        #result.masks.xy  # x,y segments (pixels), List[segment] * N
-        #result.masks.xyn  # x,y segments (normalized), List[segment] * N
-
-        # Classification
-          # cls prob, (num_class, )
-        try:
-            cv2.rectangle(frame, (int(result.boxes.xyxy[0,0]), int(result.boxes.xyxy[0,1])), (int(result.boxes.xyxy[0,2]), int(result.boxes.xyxy[0,3])), (255, 0, 0),
-                          thickness=1)
-            cv2.putText(frame, result.verbose().split(" ")[1].replace(",",""), (int(result.boxes.xyxy[0,0]), int(result.boxes.xyxy[0,1]) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0),
-                        1)
-        except:
-            pass
-    # Display the resulting frame
-    cv2.imshow('frame', frame)
-
-    # the 'q' button is set as the
-    # quitting button you may use any
-    # desired button of your choice
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-    openai.api_key = "sk-"
-    print(text)
-    # print(openai.Model.list())
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system",
-             "content": "Eine Objekterkennung von einem Bild gibt dir Informationen über die Umgebenung. Du gibst diese weiter zu einem Blindenmenschen."},
-            {"role": "user", "content": "Was ist hier zu sehen?  " +  result.verbose().split(" ")[1].replace(",","")},
-        ]
-    )
-
-    result = ''
-    for choice in response.choices:
-        result += choice.message.content
-
-    #think += deepcopy(result)
-    #print(think)
-    from gtts import gTTS
-
-    while mixer.music.get_busy():  # wait for music to finish playing
-        time.sleep(1)
-
-    mixer.music.unload()
-
-    language = 'de'
-    tts = gTTS(text=result,
-               lang=language,
-               slow=False)
-    tts.save("tts.mp3")
-
-    mixer.music.load('tts.mp3')
-    mixer.music.play()
-
-mixer.quit()
-
-# After the loop release the cap object
-vid.release()
-# Destroy all the windows
-cv2.destroyAllWindows()
-
-
-
+print(speech2txt())
