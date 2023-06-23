@@ -229,7 +229,7 @@ for obj in yolo_detectedObjs:
 #prompt = "texte: " + text_detectedObjs + " objekte: " + yolo_detectedObjs
 #frage = speech2txt()
 
-frage = "Fasse die folgenden Informationen sinnvoll zusammen."
+frage = "Sind hier irgendwo Kopfhörer?"
 #frage = speech2txt()
 print("frage", frage)
 print("prompt", prompt)
