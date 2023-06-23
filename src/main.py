@@ -2,21 +2,26 @@
 import numpy as np
 import cv2
 import speech_recognition as sr
+from google.cloud import vision
+
 # sudo apt install espeak
 #import pyaudio
 # pip3 install pyttsx
 # 3 sudo apt install espeak pip3 install pyaudio or use sudo apt install python3-pyaudio
-import pyttsx3
+# apt install libleptonica-dev tesseract-ocr  libtesseract-dev python3-pil tesseract-ocr-eng tesseract-ocr-deu tesseract-ocr-script-latn
+import pyttsx4
 import ultralytics
 from ultralytics import YOLO
 import openai
 import numpy as np
+import time
+time.sleep(5)
 
-API_KEY = ""
 
-engine = pyttsx3.init()#('sapi5')
-voices = engine.getProperty('voices')
-engine.setProperty('voice', voices[0].id)
+
+#engine = pyttsx4.init()
+#voices = engine.getProperty('voices')
+#engine.setProperty('voice', voices[0].id)
 # change_voice(engine, "nl_BE", "VoiceGenderFemale")
 WIDTH = 1920
 HEIGHT = 1080
@@ -26,12 +31,12 @@ vid.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
 vid.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
 ultralytics.checks()
 # Create a new YOLO model from scratch
-model = YOLO('resources/yolov8n.yaml')
-model = YOLO('resources/yolov8n.pt')
+model = YOLO('../resources/yolov8.yaml')
+model = YOLO('../resources/yolov8n.pt')
 
 
-for voice in engine.getProperty('voices'):
-    print(voice)
+#for voice in engine.getProperty('voices'):
+#    print(voice)
 
 
 class DetectedObj:
@@ -41,13 +46,14 @@ class DetectedObj:
         self.description = description
         self.obj_relationship = []
     def __str__(self):
-        promp = f"Objecktsignatur[Beschreibung:{self.description};Bezeichnung:{self.name};xywhh:{self.pose};"
-        if len(self.obj_relationship) > 0:
-            promp += "Übschneidungen:"
-            for relationship in self.obj_relationship:
-                promp += str(relationship)
-            promp += ";"
-        return promp + "]"
+        promp = f"{self.description}:{self.name};\n"#xywhh:{self.pose};\n"
+        promp = f"{self.name} "  # xywhh:{self.pose};\n"
+        #if len(self.obj_relationship) > 0:
+        #    promp += "Übschneidungen:"
+        #    for relationship in self.obj_relationship:
+        #        promp += str(relationship)
+        #    promp += ";"
+        return promp #+ "]"
 
 
 def get_overlap(detectedObj1,  detectedObj2):
@@ -109,7 +115,7 @@ def bilderkennung(frame):
                 #            0.9, (255, 0, 0),
                 #
                 detectedObjs.append(DetectedObj(result.verbose().split(" ")[1].replace(",", ""), (x, y, w, h),
-                                                "Objekt mit Yolov8 erkannt."))
+                                                "Objekt"))
 
         except Exception as e:
             print(e)
@@ -136,6 +142,7 @@ def screenshot_erstellen(width=WIDTH, height=HEIGHT, PIL=None):
 
 
 def text_aus_bild_lesen(frame):
+
     import pytesseract
     from pytesseract import Output
     d = pytesseract.image_to_data(frame, output_type=Output.DICT)
@@ -147,7 +154,7 @@ def text_aus_bild_lesen(frame):
         if text.replace(" ", "") == "":
             continue
         detectedObjs.append(
-            DetectedObj(text, (x, y, w, h), "Text mit pytesseract erkannt."))
+            DetectedObj(text, (x, y, w, h), "Text"))
 
     return detectedObjs
 
@@ -176,35 +183,72 @@ def speech2txt():
     return query
 
 
+def describe_image(image):
+    # Instantiieren des Vision-Client
+    client = vision.ImageAnnotatorClient(credentials=GAPI_KEY)
+
+
+    image_bytes = image.tobytes()
+
+    # Erstellen eines Image-Objekts für die Vision API
+    vision_image = vision.Image(content=image_bytes)
+
+    # Anfordern der Bildbeschreibung von der Vision API
+    response = client.annotate_image(
+        {
+            "image": vision_image,
+            "features": [{"type_": vision.Feature.Type.LABEL_DETECTION}],
+        }
+    )
+
+    # Extrahieren der Labels
+    labels = response.label_annotations
+    label_descriptions = [label.description for label in labels]
+
+    return label_descriptions
+
+
 img = screenshot_erstellen()
 text_detectedObjs = text_aus_bild_lesen(img)
 yolo_detectedObjs = bilderkennung(img)
 
+prompt = "Text: "
+for text in text_detectedObjs:
+    #print(text)
+    prompt += str(text)
+
+prompt += "Objekte: "
+for obj in yolo_detectedObjs:
+    prompt += str(obj)
+
 # overlap yolos?
-overlaps = []
-for yolo1 in yolo_detectedObjs:
-    for yolo2 in yolo_detectedObjs:
-        overlap = get_overlap(yolo1, yolo2)
-        if overlap != "":
-            overlaps.append(overlap)
-    for text in text_detectedObjs:
-        overlap = get_overlap(yolo1, text)
-        if overlap != "":
-            overlaps.append(overlap)
+#overlaps = []
+#for yolo1 in yolo_detectedObjs:
+#    for yolo2 in yolo_detectedObjs:
+#        overlap = get_overlap(yolo1, yolo2)
+#        if overlap != "":
+#            overlaps.append(overlap)
+#    for text in text_detectedObjs:
+#        overlap = get_overlap(yolo1, text)
+#        if overlap != "":
+#            overlaps.append(overlap)
+#
+#prompt = ""
+#for p in overlaps:
+#    prompt += p + "\n"
+#prompt = "texte: " + text_detectedObjs + " objekte: " + yolo_detectedObjs
+#frage = speech2txt()
 
-prompt = ""
-for p in overlaps:
-    prompt += p + "\n"
+describe_image(img)
 
-frage = speech2txt()
-print(frage)
-frage = "Was siehst du in dem Bild?"
-
+frage = "Woher könnten die Informationen stammen?"
+print("frage", frage)
+print("prompt", prompt)
 openai.api_key = API_KEY
 response = openai.ChatCompletion.create(
     model="gpt-3.5-turbo",
     messages=[
-        {"role": "system", "content": "Du bist eine AI, welche die Umgebung beschreibt."},
+        {"role": "system", "content": "Informationen, von einer Website, bereitgestellt aus einer Texterkennung (Text:) und einem Yolo-Netzwerk (Objekte:): %s." % prompt},
         {"role": "user", "content": frage},
     ]
 )
@@ -212,8 +256,8 @@ result = ''
 for choice in response.choices:
     result += choice.message.content
 print(result)
-speak(result)
+#speak(result)
 
-cv2.imshow('img', np.array(img))
-cv2.waitKey(0)
-print(speech2txt())
+#cv2.imshow('img', np.array(img))
+#cv2.waitKey(0)
+#print(speech2txt())
