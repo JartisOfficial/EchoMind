@@ -19,7 +19,6 @@ import time
 time.sleep(5)
 from transformers import pipeline
 
-from test_langchain_com import listen
 
 captioner = pipeline("image-to-text", model="Salesforce/blip-image-captioning-base")
 
@@ -29,7 +28,7 @@ engine = pyttsx3.init()
 voices = engine.getProperty('voices')
 for idx, voice in enumerate(voices):
     print(idx, voice)
-engine.setProperty('voice', voices[9].id)  # 9 = german
+engine.setProperty('voice', voices[12].id)  # 9 = german 12=eng
 
 WIDTH = 1920
 HEIGHT = 1080
@@ -234,9 +233,9 @@ for obj in yolo_detectedObjs:
 # prompt = "texte: " + text_detectedObjs + " objekte: " + yolo_detectedObjs
 # frage = speech2txt()
 
-frage = listen()
+#frage = listen()
 # frage = speech2txt()
-print("frage", frage)
+#print("frage", frage)
 print("prompt", prompt)
 openai.api_key = API_KEY
 # response = openai.ChatCompletion.create(
@@ -260,7 +259,7 @@ Assistant is aware that human input is being transcribed from audio and as such 
 Image description (image description): followed by the text of the text recognition (text:) and recognized objects (objects:): %s
 {history}
 Human: {human_input}
-Assistant:"""%prompt
+Assistant:""" % prompt
 
 prompt = PromptTemplate(input_variables=["history", "human_input"], template=template)
 
@@ -283,8 +282,10 @@ with sr.Microphone() as source:
     while 1:
         text = ""
         print("listening now...")
+        engine.say("i am listening now...")
+        engine.runAndWait()
         try:
-            audio = r.listen(source, timeout=5, phrase_time_limit=30)
+            audio = r.listen(source, timeout=   5, phrase_time_limit=30)
             print("Recognizing...")
             # whisper model options are found here: https://github.com/openai/whisper#available-models-and-languages
             # other speech recognition models are also available.
@@ -294,6 +295,7 @@ with sr.Microphone() as source:
                 show_dict=True,
             )["text"]
         except Exception as e:
+            print(e)
             unrecognized_speech_text = (
                 f"Sorry, I didn't catch that. Exception was: {e}s"
             )
