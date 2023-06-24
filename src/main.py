@@ -20,6 +20,16 @@ time.sleep(5)
 from transformers import pipeline
 
 
+
+from pygame import mixer
+import time
+from TTS.api import TTS
+
+tts = TTS("tts_models/en/ljspeech/tacotron2-DDC", gpu=True)
+mixer.init()
+
+OUTPUT_PATH = "/dev/shm/test.wav"
+
 captioner = pipeline("image-to-text", model="Salesforce/blip-image-captioning-base")
 
 API_KEY = ""
@@ -33,7 +43,6 @@ engine.setProperty('voice', voices[12].id)  # 9 = german 12=eng
 WIDTH = 1920
 HEIGHT = 1080
 
-GAPI_KEY = "AIzaSyAyz7m2buyH-Z-8iu5a7sDkkOoieShDMpE"
 
 vid = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # this is the magic!
 vid.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
@@ -145,8 +154,15 @@ def bild_von_kamera():
 
 
 def speak(audio):
-    engine.say(audio)
-    engine.runAndWait()
+    tts.tts_to_file(text=audio, file_path=OUTPUT_PATH, emotion="Happy", speed=1.5)
+    mixer.music.load(OUTPUT_PATH)
+    mixer.music.play()
+
+    while mixer.music.get_busy():  # wait for music to finish playing
+        time.sleep(1)
+
+    mixer.music.unload()
+
 
 def screenshot_erstellen(width=WIDTH, height=HEIGHT, PIL=None):
     from PIL import ImageGrab
@@ -270,22 +286,26 @@ chatgpt_chain = LLMChain(
     memory=ConversationBufferWindowMemory(k=2),
 )
 
-r = sr.Recognizer()
-with sr.Microphone() as source:
-    print("Calibrating...")
-    r.adjust_for_ambient_noise(source, duration=5)
-    # optional parameters to adjust microphone sensitivity
-    # r.energy_threshold = 200
-    # r.pause_threshold=0.5
+speak("hi all")
 
-    print("Okay, go!")
-    while 1:
+while 1:
+    r = sr.Recognizer()
+    with sr.Microphone() as source:
+        print("Calibrating...")
+        r.adjust_for_ambient_noise(source, duration=5)
+        # optional parameters to adjust microphone sensitivity
+        # r.energy_threshold = 200
+        # r.pause_threshold=0.5
+
+        print("Okay, go!")
+
         text = ""
         print("listening now...")
-        engine.say("i am listening now...")
-        engine.runAndWait()
+        #engine.say("i am listening now...")
+        #speak("i am listening now...")
+        #engine.runAndWait()
         try:
-            audio = r.listen(source, timeout=   5, phrase_time_limit=30)
+            audio = r.listen(source, timeout=5, phrase_time_limit=30)
             print("Recognizing...")
             # whisper model options are found here: https://github.com/openai/whisper#available-models-and-languages
             # other speech recognition models are also available.
@@ -304,8 +324,7 @@ with sr.Microphone() as source:
 
         response_text = chatgpt_chain.predict(human_input=text)
         print(response_text)
-        engine.say(response_text)
-        engine.runAndWait()
+        speak(response_text)
 
 
 result = ''
@@ -317,3 +336,4 @@ speak(result)
 # cv2.imshow('img', np.array(img))
 # cv2.waitKey(0)
 # print(speech2txt())
+mixer.quit()
